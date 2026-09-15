@@ -56,7 +56,7 @@ try {
         'Database connection failed. '
         .
         'Please check the database configuration.'
-        'Unable to connect to the database.'
+        . 'Unable to connect to the database.'
     );
 
 }
