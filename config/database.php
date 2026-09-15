@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+
 /*
 |--------------------------------------------------------------------------
 | Database Configuration
@@ -9,6 +10,14 @@ declare(strict_types=1);
 */
 
 $host = 'localhost';
+
+$database = 'primeburger_inventory';
+
+$username = 'root';
+
+$password = '';
+
+
 $database = 'primeburger_inventory';
 $username = 'root';
 $password = '';
@@ -44,6 +53,9 @@ try {
     http_response_code(500);
 
     exit(
+        'Database connection failed. '
+        .
+        'Please check the database configuration.'
         'Unable to connect to the database.'
     );
 

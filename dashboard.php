@@ -306,6 +306,7 @@ function formatActivityDate(
         rel="stylesheet"
         href="assets/css/output.css"
     >
+    <link rel="stylesheet" href="assets/css/output.css">
 
 </head>
 
@@ -503,6 +504,24 @@ function formatActivityDate(
                 "
             >
                 Reports
+            </a>
+
+            <a
+                href="qr-scanner.php"
+                class="
+                    rounded-xl
+                    px-4
+                    py-3
+                    text-sm
+                    font-medium
+                    text-zinc-400
+                    transition
+
+                    hover:bg-zinc-900
+                    hover:text-white
+                "
+            >
+                QR Scanner
             </a>
 
 

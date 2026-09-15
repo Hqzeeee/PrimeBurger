@@ -20,6 +20,7 @@
   "homepage": "https://github.com/Hqzeeee/PrimeBurger#readme",
   "dependencies": {
     "@tailwindcss/cli": "^4.3.3",
+    "html5-qrcode": "^2.3.8",
     "tailwindcss": "^4.3.3"
   }
 }

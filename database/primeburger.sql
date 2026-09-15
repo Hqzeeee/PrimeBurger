@@ -12,6 +12,8 @@ CREATE TABLE products (
 
     category VARCHAR(100) NULL,
 
+    qr_code VARCHAR(255) NULL UNIQUE,
+
     quantity INT UNSIGNED NOT NULL DEFAULT 0,
 
     unit VARCHAR(50) NOT NULL DEFAULT 'pcs',
