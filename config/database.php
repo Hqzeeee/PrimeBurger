@@ -9,20 +9,21 @@ declare(strict_types=1);
 |--------------------------------------------------------------------------
 */
 
-$host = 'localhost';
+$host =
+    'localhost';
 
-$database = 'primeburger_inventory';
+$database =
+    'primeburger_inventory';
 
-$username = 'root';
+$username =
+    'root';
 
-$password = '';
+$password =
+    '';
 
 
-$database = 'primeburger_inventory';
-$username = 'root';
-$password = '';
-
-$dsn = "mysql:host={$host};dbname={$database};charset=utf8mb4";
+$dsn =
+    "mysql:host={$host};dbname={$database};charset=utf8mb4";
 
 
 $options = [
@@ -41,22 +42,42 @@ $options = [
 
 try {
 
-    $pdo = new PDO(
-        $dsn,
-        $username,
-        $password,
-        $options
+    $pdo =
+        new PDO(
+
+            $dsn,
+
+            $username,
+
+            $password,
+
+            $options
+
+        );
+
+} catch (
+    PDOException $exception
+) {
+
+    http_response_code(
+        500
     );
 
-} catch (PDOException $exception) {
-
-    http_response_code(500);
 
     exit(
-        'Database connection failed. '
-        .
-        'Please check the database configuration.'
-        . 'Unable to connect to the database.'
+        'Unable to connect to the database.'
     );
 
 }
+
+
+/*
+|--------------------------------------------------------------------------
+| Authentication
+|--------------------------------------------------------------------------
+*/
+
+require_once
+    __DIR__
+    .
+    '/auth.php';

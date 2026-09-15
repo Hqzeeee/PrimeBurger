@@ -7,14 +7,19 @@ require_once __DIR__ . '/config/database.php';
 
 /*
 |--------------------------------------------------------------------------
+| Page Information
+|--------------------------------------------------------------------------
+*/
+
+$activePage = 'dashboard';
+
+$pageTitle = 'Dashboard';
+
+
+/*
+|--------------------------------------------------------------------------
 | Dashboard Configuration
 |--------------------------------------------------------------------------
-|
-| The requirements specify "near expiry" monitoring but do not specify
-| the exact number of days. For now, we use 7 days.
-|
-| This can easily be changed later.
-|
 */
 
 const NEAR_EXPIRY_DAYS = 7;
@@ -22,20 +27,22 @@ const NEAR_EXPIRY_DAYS = 7;
 
 /*
 |--------------------------------------------------------------------------
-| Helper Function
+| Get Dashboard Count
 |--------------------------------------------------------------------------
 */
 
 function getDashboardCount(
     PDO $pdo,
-    string $sql
+    string $query
 ): int {
 
     try {
 
-        $statement = $pdo->query($sql);
+        $statement =
+            $pdo->query($query);
 
-        return (int) $statement->fetchColumn();
+        return (int)
+            $statement->fetchColumn();
 
     } catch (PDOException $exception) {
 
@@ -48,69 +55,111 @@ function getDashboardCount(
 
 /*
 |--------------------------------------------------------------------------
-| Dashboard Statistics
+| Total Products
 |--------------------------------------------------------------------------
 */
 
-
-$totalProducts = getDashboardCount(
-    $pdo,
-    "
-        SELECT COUNT(*)
-        FROM products
-    "
-);
-
-
-$totalStock = getDashboardCount(
-    $pdo,
-    "
-        SELECT COALESCE(
-            SUM(quantity),
-            0
-        )
-        FROM products
-    "
-);
+$totalProducts =
+    getDashboardCount(
+        $pdo,
+        "
+            SELECT COUNT(*)
+            FROM products
+        "
+    );
 
 
-$lowStock = getDashboardCount(
-    $pdo,
-    "
-        SELECT COUNT(*)
-        FROM products
-        WHERE quantity <= reorder_level
-    "
-);
+/*
+|--------------------------------------------------------------------------
+| Available Stock
+|--------------------------------------------------------------------------
+*/
+
+$totalStock =
+    getDashboardCount(
+        $pdo,
+        "
+            SELECT
+                COALESCE(
+                    SUM(quantity),
+                    0
+                )
+
+            FROM products
+        "
+    );
 
 
-$expiredProducts = getDashboardCount(
-    $pdo,
-    "
-        SELECT COUNT(*)
-        FROM products
-        WHERE expiry_date IS NOT NULL
-        AND expiry_date < CURDATE()
-    "
-);
+/*
+|--------------------------------------------------------------------------
+| Low Stock
+|--------------------------------------------------------------------------
+*/
+
+$lowStock =
+    getDashboardCount(
+        $pdo,
+        "
+            SELECT COUNT(*)
+
+            FROM products
+
+            WHERE reorder_level > 0
+
+            AND quantity <= reorder_level
+        "
+    );
 
 
-$nearExpiry = getDashboardCount(
-    $pdo,
-    "
-        SELECT COUNT(*)
-        FROM products
+/*
+|--------------------------------------------------------------------------
+| Expired Products
+|--------------------------------------------------------------------------
+*/
 
-        WHERE expiry_date IS NOT NULL
+$expiredProducts =
+    getDashboardCount(
+        $pdo,
+        "
+            SELECT COUNT(*)
 
-        AND expiry_date >= CURDATE()
+            FROM products
 
-        AND expiry_date <= DATE_ADD(
-            CURDATE(),
-            INTERVAL " . NEAR_EXPIRY_DAYS . " DAY
-        )
-    "
-);
+            WHERE expiry_date IS NOT NULL
+
+            AND expiry_date < CURDATE()
+        "
+    );
+
+
+/*
+|--------------------------------------------------------------------------
+| Near Expiry
+|--------------------------------------------------------------------------
+*/
+
+$nearExpiry =
+    getDashboardCount(
+        $pdo,
+        "
+            SELECT COUNT(*)
+
+            FROM products
+
+            WHERE expiry_date IS NOT NULL
+
+            AND expiry_date >= CURDATE()
+
+            AND expiry_date <= DATE_ADD(
+                CURDATE(),
+                INTERVAL "
+                .
+                NEAR_EXPIRY_DAYS
+                .
+                " DAY
+            )
+        "
+    );
 
 
 /*
@@ -120,9 +169,12 @@ $nearExpiry = getDashboardCount(
 */
 
 $attentionSql = "
+
     SELECT
         product_id,
         name,
+        category,
+        qr_code,
         quantity,
         unit,
         expiry_date,
@@ -132,17 +184,27 @@ $attentionSql = "
 
     WHERE
 
-        quantity <= reorder_level
+        (
+            reorder_level > 0
+
+            AND quantity <= reorder_level
+        )
 
         OR expiry_date < CURDATE()
 
         OR (
+
             expiry_date >= CURDATE()
 
             AND expiry_date <= DATE_ADD(
                 CURDATE(),
-                INTERVAL " . NEAR_EXPIRY_DAYS . " DAY
+                INTERVAL "
+                .
+                NEAR_EXPIRY_DAYS
+                .
+                " DAY
             )
+
         )
 
     ORDER BY
@@ -152,7 +214,9 @@ $attentionSql = "
             WHEN expiry_date < CURDATE()
                 THEN 1
 
-            WHEN quantity <= reorder_level
+            WHEN
+                reorder_level > 0
+                AND quantity <= reorder_level
                 THEN 2
 
             ELSE 3
@@ -164,16 +228,17 @@ $attentionSql = "
         name ASC
 
     LIMIT 8
+
 ";
 
 
 try {
 
-    $attentionStatement =
+    $statement =
         $pdo->query($attentionSql);
 
     $attentionProducts =
-        $attentionStatement->fetchAll();
+        $statement->fetchAll();
 
 } catch (PDOException $exception) {
 
@@ -189,6 +254,7 @@ try {
 */
 
 $activitySql = "
+
     SELECT
         inventory_logs.log_id,
         inventory_logs.log_type,
@@ -202,6 +268,7 @@ $activitySql = "
     FROM inventory_logs
 
     INNER JOIN products
+
         ON products.product_id =
            inventory_logs.product_id
 
@@ -209,16 +276,17 @@ $activitySql = "
         inventory_logs.created_at DESC
 
     LIMIT 6
+
 ";
 
 
 try {
 
-    $activityStatement =
+    $statement =
         $pdo->query($activitySql);
 
     $recentActivities =
-        $activityStatement->fetchAll();
+        $statement->fetchAll();
 
 } catch (PDOException $exception) {
 
@@ -229,17 +297,20 @@ try {
 
 /*
 |--------------------------------------------------------------------------
-| Small Helpers
+| Date Functions
 |--------------------------------------------------------------------------
 */
 
-function formatDate(
+function dashboardDate(
     ?string $date
 ): string {
 
     if (!$date) {
+
         return '—';
+
     }
+
 
     return date(
         'M d, Y',
@@ -249,20 +320,22 @@ function formatDate(
 }
 
 
-function formatActivityDate(
+function dashboardActivityDate(
     string $date
 ): string {
 
-    $timestamp = strtotime($date);
-
-    $today =
-        date('Y-m-d');
-
-    $activityDate =
-        date('Y-m-d', $timestamp);
+    $timestamp =
+        strtotime($date);
 
 
-    if ($activityDate === $today) {
+    if (
+        date(
+            'Y-m-d',
+            $timestamp
+        )
+        ===
+        date('Y-m-d')
+    ) {
 
         return date(
             'g:i A',
@@ -271,13 +344,13 @@ function formatActivityDate(
 
     }
 
+
     return date(
         'M d, g:i A',
         $timestamp
     );
 
 }
-
 
 ?>
 <!DOCTYPE html>
@@ -293,20 +366,15 @@ function formatActivityDate(
         content="width=device-width, initial-scale=1.0"
     >
 
-    <meta
-        name="description"
-        content="PrimeBurger Inventory Management Dashboard"
-    >
-
     <title>
         Dashboard | PrimeBurger Inventory
     </title>
+
 
     <link
         rel="stylesheet"
         href="assets/css/output.css"
     >
-    <link rel="stylesheet" href="assets/css/output.css">
 
 </head>
 
@@ -323,263 +391,16 @@ function formatActivityDate(
 <div class="min-h-screen">
 
 
-    <!-- ========================================================= -->
-    <!-- SIDEBAR -->
-    <!-- ========================================================= -->
+    <?php
+
+    require __DIR__ . '/includes/sidebar.php';
+
+    ?>
 
 
-    <aside
-        class="
-            fixed
-            inset-y-0
-            left-0
-            z-40
-            hidden
-            w-64
-            flex-col
-            bg-zinc-950
-            lg:flex
-        "
-    >
-
-
-        <!-- BRAND -->
-
-        <div
-            class="
-                flex
-                h-20
-                items-center
-                gap-3
-                border-b
-                border-zinc-800
-                px-6
-            "
-        >
-
-            <div
-                class="
-                    flex
-                    h-11
-                    w-11
-                    items-center
-                    justify-center
-                    rounded-xl
-                    bg-red-700
-                    text-sm
-                    font-bold
-                    text-white
-                "
-            >
-                PB
-            </div>
-
-
-            <div>
-
-                <h1
-                    class="
-                        text-base
-                        font-bold
-                        text-white
-                    "
-                >
-                    PrimeBurger
-                </h1>
-
-                <p
-                    class="
-                        text-xs
-                        text-zinc-400
-                    "
-                >
-                    Inventory System
-                </p>
-
-            </div>
-
-        </div>
-
-
-
-        <!-- NAVIGATION -->
-
-        <nav
-            class="
-                flex
-                flex-1
-                flex-col
-                gap-1.5
-                p-4
-            "
-        >
-
-
-            <a
-                href="dashboard.php"
-                class="
-                    rounded-xl
-                    bg-red-700
-                    px-4
-                    py-3
-                    text-sm
-                    font-semibold
-                    text-white
-                "
-            >
-                Dashboard
-            </a>
-
-
-            <a
-                href="#"
-                class="
-                    rounded-xl
-                    px-4
-                    py-3
-                    text-sm
-                    font-medium
-                    text-zinc-400
-                    transition
-
-                    hover:bg-zinc-900
-                    hover:text-white
-                "
-            >
-                Products
-            </a>
-
-
-            <a
-                href="#"
-                class="
-                    rounded-xl
-                    px-4
-                    py-3
-                    text-sm
-                    font-medium
-                    text-zinc-400
-                    transition
-
-                    hover:bg-zinc-900
-                    hover:text-white
-                "
-            >
-                Inventory
-            </a>
-
-
-            <a
-                href="#"
-                class="
-                    rounded-xl
-                    px-4
-                    py-3
-                    text-sm
-                    font-medium
-                    text-zinc-400
-                    transition
-
-                    hover:bg-zinc-900
-                    hover:text-white
-                "
-            >
-                Suppliers
-            </a>
-
-
-            <a
-                href="#"
-                class="
-                    rounded-xl
-                    px-4
-                    py-3
-                    text-sm
-                    font-medium
-                    text-zinc-400
-                    transition
-
-                    hover:bg-zinc-900
-                    hover:text-white
-                "
-            >
-                Reports
-            </a>
-
-            <a
-                href="qr-scanner.php"
-                class="
-                    rounded-xl
-                    px-4
-                    py-3
-                    text-sm
-                    font-medium
-                    text-zinc-400
-                    transition
-
-                    hover:bg-zinc-900
-                    hover:text-white
-                "
-            >
-                QR Scanner
-            </a>
-
-
-        </nav>
-
-
-
-        <!-- SIDEBAR FOOTER -->
-
-        <div
-            class="
-                border-t
-                border-zinc-800
-                p-4
-            "
-        >
-
-            <div
-                class="
-                    rounded-xl
-                    bg-zinc-900
-                    p-4
-                "
-            >
-
-                <p
-                    class="
-                        text-sm
-                        font-semibold
-                        text-white
-                    "
-                >
-                    PrimeBurger Owner
-                </p>
-
-                <p
-                    class="
-                        mt-1
-                        text-xs
-                        text-zinc-500
-                    "
-                >
-                    Administrator
-                </p>
-
-            </div>
-
-        </div>
-
-
-    </aside>
-
-
-
-    <!-- ========================================================= -->
-    <!-- MAIN -->
-    <!-- ========================================================= -->
-
+    <!-- =====================================================
+         MAIN CONTENT
+    ====================================================== -->
 
     <main
         class="
@@ -587,73 +408,6 @@ function formatActivityDate(
             lg:ml-64
         "
     >
-
-
-        <!-- MOBILE HEADER -->
-
-        <div
-            class="
-                border-b
-                border-slate-200
-                bg-white
-                px-5
-                py-4
-                lg:hidden
-            "
-        >
-
-            <div
-                class="
-                    flex
-                    items-center
-                    gap-3
-                "
-            >
-
-                <div
-                    class="
-                        flex
-                        h-10
-                        w-10
-                        items-center
-                        justify-center
-                        rounded-xl
-                        bg-red-700
-                        text-xs
-                        font-bold
-                        text-white
-                    "
-                >
-                    PB
-                </div>
-
-
-                <div>
-
-                    <p
-                        class="
-                            text-sm
-                            font-bold
-                        "
-                    >
-                        PrimeBurger
-                    </p>
-
-                    <p
-                        class="
-                            text-xs
-                            text-slate-500
-                        "
-                    >
-                        Inventory System
-                    </p>
-
-                </div>
-
-            </div>
-
-        </div>
-
 
 
         <div
@@ -666,10 +420,7 @@ function formatActivityDate(
         >
 
 
-            <!-- ================================================= -->
-            <!-- PAGE HEADER -->
-            <!-- ================================================= -->
-
+            <!-- HEADER -->
 
             <header
                 class="
@@ -706,7 +457,6 @@ function formatActivityDate(
                             text-3xl
                             font-bold
                             tracking-tight
-                            text-slate-900
 
                             md:text-4xl
                         "
@@ -730,8 +480,6 @@ function formatActivityDate(
                 </div>
 
 
-
-                <!-- OWNER -->
 
                 <div
                     class="
@@ -771,7 +519,6 @@ function formatActivityDate(
                             class="
                                 text-sm
                                 font-semibold
-                                text-slate-900
                             "
                         >
                             Owner
@@ -780,7 +527,6 @@ function formatActivityDate(
 
                         <p
                             class="
-                                mt-0.5
                                 text-xs
                                 text-slate-500
                             "
@@ -792,15 +538,13 @@ function formatActivityDate(
 
                 </div>
 
-
             </header>
 
 
 
-            <!-- ================================================= -->
-            <!-- DASHBOARD SUMMARY -->
-            <!-- ================================================= -->
-
+            <!-- =================================================
+                 SUMMARY CARDS
+            ================================================== -->
 
             <section
                 class="
@@ -828,73 +572,28 @@ function formatActivityDate(
                     "
                 >
 
-                    <div
+                    <p
                         class="
-                            flex
-                            items-start
-                            justify-between
+                            text-sm
+                            font-medium
+                            text-slate-500
                         "
                     >
-
-                        <div>
-
-                            <p
-                                class="
-                                    text-sm
-                                    font-medium
-                                    text-slate-500
-                                "
-                            >
-                                Total Products
-                            </p>
+                        Total Products
+                    </p>
 
 
-                            <p
-                                class="
-                                    mt-3
-                                    text-3xl
-                                    font-bold
-                                    tracking-tight
-                                "
-                            >
-
-                                <?= number_format(
-                                    $totalProducts
-                                ) ?>
-
-                            </p>
-
-                        </div>
-
-
-                        <div
-                            class="
-                                rounded-xl
-                                bg-slate-100
-                                p-2.5
-                                text-slate-600
-                            "
-                        >
-
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="20"
-                                height="20"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <path
-                                    d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"
-                                />
-                                <path d="m3.3 7 8.7 5 8.7-5"/>
-                                <path d="M12 22V12"/>
-                            </svg>
-
-                        </div>
-
-                    </div>
+                    <p
+                        class="
+                            mt-3
+                            text-3xl
+                            font-bold
+                        "
+                    >
+                        <?= number_format(
+                            $totalProducts
+                        ) ?>
+                    </p>
 
 
                     <p
@@ -940,14 +639,11 @@ function formatActivityDate(
                             mt-3
                             text-3xl
                             font-bold
-                            tracking-tight
                         "
                     >
-
                         <?= number_format(
                             $totalStock
                         ) ?>
-
                     </p>
 
 
@@ -978,59 +674,28 @@ function formatActivityDate(
                     "
                 >
 
-                    <div
+                    <p
                         class="
-                            flex
-                            items-start
-                            justify-between
+                            text-sm
+                            font-medium
+                            text-slate-500
                         "
                     >
-
-                        <div>
-
-                            <p
-                                class="
-                                    text-sm
-                                    font-medium
-                                    text-slate-500
-                                "
-                            >
-                                Low Stock
-                            </p>
+                        Low Stock
+                    </p>
 
 
-                            <p
-                                class="
-                                    mt-3
-                                    text-3xl
-                                    font-bold
-                                "
-                            >
-
-                                <?= number_format(
-                                    $lowStock
-                                ) ?>
-
-                            </p>
-
-                        </div>
-
-
-                        <span
-                            class="
-                                rounded-full
-                                bg-amber-50
-                                px-2.5
-                                py-1
-                                text-[11px]
-                                font-semibold
-                                text-amber-700
-                            "
-                        >
-                            Warning
-                        </span>
-
-                    </div>
+                    <p
+                        class="
+                            mt-3
+                            text-3xl
+                            font-bold
+                        "
+                    >
+                        <?= number_format(
+                            $lowStock
+                        ) ?>
+                    </p>
 
 
                     <p
@@ -1060,59 +725,28 @@ function formatActivityDate(
                     "
                 >
 
-                    <div
+                    <p
                         class="
-                            flex
-                            items-start
-                            justify-between
+                            text-sm
+                            font-medium
+                            text-slate-500
                         "
                     >
-
-                        <div>
-
-                            <p
-                                class="
-                                    text-sm
-                                    font-medium
-                                    text-slate-500
-                                "
-                            >
-                                Near Expiry
-                            </p>
+                        Near Expiry
+                    </p>
 
 
-                            <p
-                                class="
-                                    mt-3
-                                    text-3xl
-                                    font-bold
-                                "
-                            >
-
-                                <?= number_format(
-                                    $nearExpiry
-                                ) ?>
-
-                            </p>
-
-                        </div>
-
-
-                        <span
-                            class="
-                                rounded-full
-                                bg-orange-50
-                                px-2.5
-                                py-1
-                                text-[11px]
-                                font-semibold
-                                text-orange-700
-                            "
-                        >
-                            Soon
-                        </span>
-
-                    </div>
+                    <p
+                        class="
+                            mt-3
+                            text-3xl
+                            font-bold
+                        "
+                    >
+                        <?= number_format(
+                            $nearExpiry
+                        ) ?>
+                    </p>
 
 
                     <p
@@ -1144,59 +778,28 @@ function formatActivityDate(
                     "
                 >
 
-                    <div
+                    <p
                         class="
-                            flex
-                            items-start
-                            justify-between
+                            text-sm
+                            font-medium
+                            text-slate-500
                         "
                     >
-
-                        <div>
-
-                            <p
-                                class="
-                                    text-sm
-                                    font-medium
-                                    text-slate-500
-                                "
-                            >
-                                Expired
-                            </p>
+                        Expired
+                    </p>
 
 
-                            <p
-                                class="
-                                    mt-3
-                                    text-3xl
-                                    font-bold
-                                "
-                            >
-
-                                <?= number_format(
-                                    $expiredProducts
-                                ) ?>
-
-                            </p>
-
-                        </div>
-
-
-                        <span
-                            class="
-                                rounded-full
-                                bg-red-50
-                                px-2.5
-                                py-1
-                                text-[11px]
-                                font-semibold
-                                text-red-700
-                            "
-                        >
-                            Action
-                        </span>
-
-                    </div>
+                    <p
+                        class="
+                            mt-3
+                            text-3xl
+                            font-bold
+                        "
+                    >
+                        <?= number_format(
+                            $expiredProducts
+                        ) ?>
+                    </p>
 
 
                     <p
@@ -1211,31 +814,25 @@ function formatActivityDate(
 
                 </article>
 
-
             </section>
 
 
 
-            <!-- ================================================= -->
-            <!-- LOWER SECTION -->
-            <!-- ================================================= -->
-
+            <!-- =================================================
+                 DASHBOARD LOWER SECTION
+            ================================================== -->
 
             <section
                 class="
                     grid
                     grid-cols-1
                     gap-6
-
                     xl:grid-cols-3
                 "
             >
 
 
-                <!-- ============================================= -->
-                <!-- ATTENTION TABLE -->
-                <!-- ============================================= -->
-
+                <!-- PRODUCTS REQUIRING ATTENTION -->
 
                 <div
                     class="
@@ -1253,9 +850,6 @@ function formatActivityDate(
 
                     <div
                         class="
-                            flex
-                            items-center
-                            justify-between
                             border-b
                             border-slate-200
                             px-6
@@ -1263,29 +857,20 @@ function formatActivityDate(
                         "
                     >
 
-                        <div>
-
-                            <h3
-                                class="
-                                    font-semibold
-                                    text-slate-900
-                                "
-                            >
-                                Products Requiring Attention
-                            </h3>
+                        <h3 class="font-semibold">
+                            Products Requiring Attention
+                        </h3>
 
 
-                            <p
-                                class="
-                                    mt-1
-                                    text-xs
-                                    text-slate-500
-                                "
-                            >
-                                Low-stock and expiration alerts
-                            </p>
-
-                        </div>
+                        <p
+                            class="
+                                mt-1
+                                text-xs
+                                text-slate-500
+                            "
+                        >
+                            Low-stock and expiration alerts
+                        </p>
 
                     </div>
 
@@ -1295,8 +880,6 @@ function formatActivityDate(
                         empty($attentionProducts)
                     ): ?>
 
-
-                        <!-- EMPTY STATE -->
 
                         <div
                             class="
@@ -1321,26 +904,10 @@ function formatActivityDate(
                                     justify-center
                                     rounded-2xl
                                     bg-slate-100
-                                    text-slate-400
+                                    text-2xl
                                 "
                             >
-
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="26"
-                                    height="26"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                                >
-                                    <path
-                                        d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"
-                                    />
-                                    <path d="m3.3 7 8.7 5 8.7-5"/>
-                                    <path d="M12 22V12"/>
-                                </svg>
-
+                                📦
                             </div>
 
 
@@ -1348,7 +915,6 @@ function formatActivityDate(
                                 class="
                                     text-sm
                                     font-semibold
-                                    text-slate-800
                                 "
                             >
                                 No products require attention
@@ -1363,8 +929,8 @@ function formatActivityDate(
                                     text-slate-500
                                 "
                             >
-                                Low-stock, near-expiry and
-                                expired products will
+                                Low-stock, near-expiry
+                                and expired products will
                                 automatically appear here.
                             </p>
 
@@ -1377,29 +943,24 @@ function formatActivityDate(
                         <div class="overflow-x-auto">
 
 
-                            <table
-                                class="
-                                    min-w-full
-                                    divide-y
-                                    divide-slate-200
-                                "
-                            >
+                            <table class="min-w-full">
 
 
-                                <thead class="bg-slate-50">
-
+                                <thead
+                                    class="
+                                        bg-slate-50
+                                        text-left
+                                    "
+                                >
 
                                 <tr>
 
                                     <th
                                         class="
                                             px-6
-                                            py-3.5
-                                            text-left
+                                            py-3
                                             text-xs
-                                            font-semibold
                                             uppercase
-                                            tracking-wide
                                             text-slate-500
                                         "
                                     >
@@ -1410,12 +971,9 @@ function formatActivityDate(
                                     <th
                                         class="
                                             px-6
-                                            py-3.5
-                                            text-left
+                                            py-3
                                             text-xs
-                                            font-semibold
                                             uppercase
-                                            tracking-wide
                                             text-slate-500
                                         "
                                     >
@@ -1426,12 +984,9 @@ function formatActivityDate(
                                     <th
                                         class="
                                             px-6
-                                            py-3.5
-                                            text-left
+                                            py-3
                                             text-xs
-                                            font-semibold
                                             uppercase
-                                            tracking-wide
                                             text-slate-500
                                         "
                                     >
@@ -1442,12 +997,9 @@ function formatActivityDate(
                                     <th
                                         class="
                                             px-6
-                                            py-3.5
-                                            text-left
+                                            py-3
                                             text-xs
-                                            font-semibold
                                             uppercase
-                                            tracking-wide
                                             text-slate-500
                                         "
                                     >
@@ -1456,9 +1008,7 @@ function formatActivityDate(
 
                                 </tr>
 
-
                                 </thead>
-
 
 
                                 <tbody
@@ -1489,37 +1039,30 @@ function formatActivityDate(
                                         $product['expiry_date'];
 
 
-                                    /*
-                                    |--------------------------------------------------------------------------
-                                    | Determine Product Status
-                                    |--------------------------------------------------------------------------
-                                    */
-
                                     if (
-                                        $expiryDate !== null
+                                        $expiryDate
                                         &&
                                         strtotime($expiryDate)
-                                        < strtotime(
-                                            date('Y-m-d')
-                                        )
+                                        <
+                                        strtotime(date('Y-m-d'))
                                     ) {
 
                                         $status =
                                             'Expired';
 
-                                        $statusClasses =
+                                        $statusClass =
                                             'bg-red-50 text-red-700';
 
                                     } elseif (
-                                        $quantity
-                                        <=
-                                        $reorderLevel
+                                        $reorderLevel > 0
+                                        &&
+                                        $quantity <= $reorderLevel
                                     ) {
 
                                         $status =
                                             'Low Stock';
 
-                                        $statusClasses =
+                                        $statusClass =
                                             'bg-amber-50 text-amber-700';
 
                                     } else {
@@ -1527,7 +1070,7 @@ function formatActivityDate(
                                         $status =
                                             'Near Expiry';
 
-                                        $statusClasses =
+                                        $statusClass =
                                             'bg-orange-50 text-orange-700';
 
                                     }
@@ -1537,43 +1080,30 @@ function formatActivityDate(
 
                                     <tr
                                         class="
-                                            transition
                                             hover:bg-slate-50
                                         "
                                     >
 
-
                                         <td
                                             class="
-                                                whitespace-nowrap
                                                 px-6
                                                 py-4
+                                                text-sm
+                                                font-semibold
                                             "
                                         >
 
-                                            <p
-                                                class="
-                                                    text-sm
-                                                    font-semibold
-                                                    text-slate-900
-                                                "
-                                            >
-
-                                                <?= htmlspecialchars(
-                                                    $product['name'],
-                                                    ENT_QUOTES,
-                                                    'UTF-8'
-                                                ) ?>
-
-                                            </p>
+                                            <?= htmlspecialchars(
+                                                $product['name'],
+                                                ENT_QUOTES,
+                                                'UTF-8'
+                                            ) ?>
 
                                         </td>
 
 
-
                                         <td
                                             class="
-                                                whitespace-nowrap
                                                 px-6
                                                 py-4
                                                 text-sm
@@ -1594,10 +1124,8 @@ function formatActivityDate(
                                         </td>
 
 
-
                                         <td
                                             class="
-                                                whitespace-nowrap
                                                 px-6
                                                 py-4
                                                 text-sm
@@ -1605,17 +1133,15 @@ function formatActivityDate(
                                             "
                                         >
 
-                                            <?= formatDate(
+                                            <?= dashboardDate(
                                                 $expiryDate
                                             ) ?>
 
                                         </td>
 
 
-
                                         <td
                                             class="
-                                                whitespace-nowrap
                                                 px-6
                                                 py-4
                                             "
@@ -1623,23 +1149,19 @@ function formatActivityDate(
 
                                             <span
                                                 class="
-                                                    inline-flex
                                                     rounded-full
                                                     px-2.5
                                                     py-1
                                                     text-xs
                                                     font-semibold
 
-                                                    <?= $statusClasses ?>
+                                                    <?= $statusClass ?>
                                                 "
                                             >
-
                                                 <?= $status ?>
-
                                             </span>
 
                                         </td>
-
 
                                     </tr>
 
@@ -1649,9 +1171,7 @@ function formatActivityDate(
 
                                 </tbody>
 
-
                             </table>
-
 
                         </div>
 
@@ -1663,10 +1183,7 @@ function formatActivityDate(
 
 
 
-                <!-- ============================================= -->
                 <!-- RECENT ACTIVITY -->
-                <!-- ============================================= -->
-
 
                 <div
                     class="
@@ -1689,12 +1206,7 @@ function formatActivityDate(
                         "
                     >
 
-                        <h3
-                            class="
-                                font-semibold
-                                text-slate-900
-                            "
-                        >
+                        <h3 class="font-semibold">
                             Recent Activity
                         </h3>
 
@@ -1725,8 +1237,7 @@ function formatActivityDate(
                                 flex-col
                                 items-center
                                 justify-center
-                                px-6
-                                py-12
+                                p-6
                                 text-center
                             "
                         >
@@ -1741,42 +1252,15 @@ function formatActivityDate(
                                     justify-center
                                     rounded-2xl
                                     bg-slate-100
-                                    text-slate-400
                                 "
                             >
-
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="26"
-                                    height="26"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                                >
-                                    <path
-                                        d="M12 8v4l3 3"
-                                    />
-
-                                    <circle
-                                        cx="12"
-                                        cy="12"
-                                        r="9"
-                                    />
-                                </svg>
-
+                                ↻
                             </div>
 
 
-                            <h4
-                                class="
-                                    text-sm
-                                    font-semibold
-                                    text-slate-800
-                                "
-                            >
+                            <p class="font-semibold">
                                 No inventory activity yet
-                            </h4>
+                            </p>
 
 
                             <p
@@ -1813,44 +1297,43 @@ function formatActivityDate(
 
                                 <?php
 
-                                $isStockIn =
+                                if (
                                     $activity['log_type']
-                                    === 'stock_in';
+                                    ===
+                                    'stock_in'
+                                ) {
 
-                                $isStockOut =
-                                    $activity['log_type']
-                                    === 'stock_out';
+                                    $symbol = '+';
 
-
-                                if ($isStockIn) {
-
-                                    $icon = '+';
-
-                                    $iconClasses =
-                                        'bg-emerald-50 text-emerald-700';
-
-                                    $activityLabel =
+                                    $activityName =
                                         'Stock In';
 
-                                } elseif ($isStockOut) {
+                                    $iconClass =
+                                        'bg-emerald-50 text-emerald-700';
 
-                                    $icon = '−';
+                                } elseif (
+                                    $activity['log_type']
+                                    ===
+                                    'stock_out'
+                                ) {
 
-                                    $iconClasses =
-                                        'bg-red-50 text-red-700';
+                                    $symbol = '−';
 
-                                    $activityLabel =
+                                    $activityName =
                                         'Stock Out';
+
+                                    $iconClass =
+                                        'bg-red-50 text-red-700';
 
                                 } else {
 
-                                    $icon = '±';
+                                    $symbol = '±';
 
-                                    $iconClasses =
-                                        'bg-blue-50 text-blue-700';
-
-                                    $activityLabel =
+                                    $activityName =
                                         'Adjustment';
+
+                                    $iconClass =
+                                        'bg-blue-50 text-blue-700';
 
                                 }
 
@@ -1866,7 +1349,6 @@ function formatActivityDate(
                                     "
                                 >
 
-
                                     <div
                                         class="
                                             flex
@@ -1878,14 +1360,11 @@ function formatActivityDate(
                                             rounded-lg
                                             font-bold
 
-                                            <?= $iconClasses ?>
+                                            <?= $iconClass ?>
                                         "
                                     >
-
-                                        <?= $icon ?>
-
+                                        <?= $symbol ?>
                                     </div>
-
 
 
                                     <div
@@ -1900,14 +1379,11 @@ function formatActivityDate(
                                                 truncate
                                                 text-sm
                                                 font-semibold
-                                                text-slate-900
                                             "
                                         >
 
                                             <?= htmlspecialchars(
-                                                $activity[
-                                                    'product_name'
-                                                ],
+                                                $activity['product_name'],
                                                 ENT_QUOTES,
                                                 'UTF-8'
                                             ) ?>
@@ -1917,21 +1393,18 @@ function formatActivityDate(
 
                                         <p
                                             class="
-                                                mt-0.5
                                                 text-xs
                                                 text-slate-500
                                             "
                                         >
 
-                                            <?= $activityLabel ?>
+                                            <?= $activityName ?>
 
                                             ·
 
                                             <?= number_format(
                                                 (int)
-                                                $activity[
-                                                    'quantity'
-                                                ]
+                                                $activity['quantity']
                                             ) ?>
 
                                             <?= htmlspecialchars(
@@ -1945,7 +1418,6 @@ function formatActivityDate(
                                     </div>
 
 
-
                                     <time
                                         class="
                                             whitespace-nowrap
@@ -1954,14 +1426,11 @@ function formatActivityDate(
                                         "
                                     >
 
-                                        <?= formatActivityDate(
-                                            $activity[
-                                                'created_at'
-                                            ]
+                                        <?= dashboardActivityDate(
+                                            $activity['created_at']
                                         ) ?>
 
                                     </time>
-
 
                                 </div>
 
@@ -1980,12 +1449,9 @@ function formatActivityDate(
 
             </section>
 
-
         </div>
 
-
     </main>
-
 
 </div>
 
