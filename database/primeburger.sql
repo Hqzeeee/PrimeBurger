@@ -12,8 +12,6 @@ CREATE TABLE products (
 
     category VARCHAR(100) NULL,
 
-    qr_code VARCHAR(255) NULL UNIQUE,
-
     quantity INT UNSIGNED NOT NULL DEFAULT 0,
 
     unit VARCHAR(50) NOT NULL DEFAULT 'pcs',
@@ -61,3 +59,24 @@ ON products(expiry_date);
 
 CREATE INDEX idx_inventory_logs_created
 ON inventory_logs(created_at);
+
+
+CREATE TABLE users (
+    user_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+    username VARCHAR(50) NOT NULL,
+
+    password_hash VARCHAR(255) NOT NULL,
+
+    full_name VARCHAR(150) NOT NULL,
+
+    role ENUM(
+        'admin',
+        'staff'
+    ) NOT NULL DEFAULT 'staff',
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uq_users_username
+        UNIQUE (username)
+);

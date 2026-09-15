@@ -3,6 +3,11 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/config/auth.php';
+
+requireLogin();
+
+$authUser = currentUser();
 
 
 /*
@@ -306,7 +311,6 @@ function formatActivityDate(
         rel="stylesheet"
         href="assets/css/output.css"
     >
-    <link rel="stylesheet" href="assets/css/output.css">
 
 </head>
 
@@ -506,24 +510,6 @@ function formatActivityDate(
                 Reports
             </a>
 
-            <a
-                href="qr-scanner.php"
-                class="
-                    rounded-xl
-                    px-4
-                    py-3
-                    text-sm
-                    font-medium
-                    text-zinc-400
-                    transition
-
-                    hover:bg-zinc-900
-                    hover:text-white
-                "
-            >
-                QR Scanner
-            </a>
-
 
         </nav>
 
@@ -554,7 +540,7 @@ function formatActivityDate(
                         text-white
                     "
                 >
-                    PrimeBurger Owner
+                    <?= htmlspecialchars($authUser['full_name'], ENT_QUOTES, 'UTF-8') ?>
                 </p>
 
                 <p
@@ -564,8 +550,31 @@ function formatActivityDate(
                         text-zinc-500
                     "
                 >
-                    Administrator
+                    <?= htmlspecialchars(ucfirst($authUser['role']), ENT_QUOTES, 'UTF-8') ?>
                 </p>
+
+                <a
+                    href="logout.php"
+                    class="
+                        mt-3
+                        block
+                        rounded-lg
+                        border
+                        border-zinc-800
+                        px-3
+                        py-2
+                        text-center
+                        text-xs
+                        font-semibold
+                        text-zinc-300
+                        transition
+
+                        hover:bg-zinc-800
+                        hover:text-white
+                    "
+                >
+                    Log out
+                </a>
 
             </div>
 
@@ -761,7 +770,11 @@ function formatActivityDate(
                             text-white
                         "
                     >
-                        O
+                        <?= htmlspecialchars(
+                            strtoupper(substr($authUser['full_name'], 0, 1)),
+                            ENT_QUOTES,
+                            'UTF-8'
+                        ) ?>
                     </div>
 
 
@@ -774,7 +787,7 @@ function formatActivityDate(
                                 text-slate-900
                             "
                         >
-                            Owner
+                            <?= htmlspecialchars($authUser['full_name'], ENT_QUOTES, 'UTF-8') ?>
                         </p>
 
 
@@ -785,10 +798,32 @@ function formatActivityDate(
                                 text-slate-500
                             "
                         >
-                            Administrator
+                            <?= htmlspecialchars(ucfirst($authUser['role']), ENT_QUOTES, 'UTF-8') ?>
                         </p>
 
                     </div>
+
+
+                    <a
+                        href="logout.php"
+                        class="
+                            ml-2
+                            rounded-lg
+                            border
+                            border-slate-200
+                            px-3
+                            py-2
+                            text-xs
+                            font-semibold
+                            text-slate-500
+                            transition
+
+                            hover:bg-slate-50
+                            hover:text-slate-900
+                        "
+                    >
+                        Log out
+                    </a>
 
                 </div>
 
