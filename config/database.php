@@ -18,6 +18,10 @@ $username = 'root';
 $password = '';
 
 
+$database = 'primeburger_inventory';
+$username = 'root';
+$password = '';
+
 $dsn = "mysql:host={$host};dbname={$database};charset=utf8mb4";
 
 
@@ -52,6 +56,7 @@ try {
         'Database connection failed. '
         .
         'Please check the database configuration.'
+        'Unable to connect to the database.'
     );
 
 }
