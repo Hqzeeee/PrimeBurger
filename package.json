@@ -1,0 +1,26 @@
+{
+  "name": "primeburger",
+  "version": "1.0.0",
+  "description": "Inventory Management System with QR based tracking for spoilage",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hqzeeee/PrimeBurger.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Hqzeeee/PrimeBurger/issues"
+  },
+  "homepage": "https://github.com/Hqzeeee/PrimeBurger#readme",
+  "dependencies": {
+    "@tailwindcss/cli": "^4.3.3",
+    "html5-qrcode": "^2.3.8",
+    "tailwindcss": "^4.3.3"
+  }
+}
