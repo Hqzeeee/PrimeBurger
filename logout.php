@@ -1,25 +1,10 @@
 <?php
+require_once __DIR__ . '/app/bootstrap.php';
+require_once __DIR__ . '/app/controllers/AuthController.php';
 
-declare(strict_types=1);
+if (Auth::check()) {
+    (new AuthController())->logout();
+}
 
-require_once __DIR__ . '/config/auth.php';
-
-
-/*
-|--------------------------------------------------------------------------
-| Logout Current User
-|--------------------------------------------------------------------------
-*/
-
-logoutUser();
-
-
-/*
-|--------------------------------------------------------------------------
-| Return To Login
-|--------------------------------------------------------------------------
-*/
-
-redirectTo(
-    'login.php'
-);
+header('Location: ' . APP_URL . '/login.php');
+exit;

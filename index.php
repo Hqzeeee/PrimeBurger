@@ -1,24 +1,5 @@
 <?php
+require_once __DIR__ . '/app/bootstrap.php';
 
-declare(strict_types=1);
-
-require_once __DIR__ . '/config/auth.php';
-
-
-/*
-|--------------------------------------------------------------------------
-| PrimeBurger Entry Point
-|--------------------------------------------------------------------------
-*/
-
-if (isLoggedIn()) {
-
-    redirectTo(
-        'dashboard.php'
-    );
-}
-
-
-redirectTo(
-    'login.php'
-);
+header('Location: ' . (Auth::check() ? APP_URL . '/dashboard.php' : APP_URL . '/login.php'));
+exit;
